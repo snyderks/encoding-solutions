@@ -3,6 +3,9 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/AESIntro/AESIntro.iml" filepath="$PROJECT_DIR$/AESIntro/AESIntro.iml" />
+      <module fileurl="file://$PROJECT_DIR$/DiffieHellman/DiffieHellman.iml" filepath="$PROJECT_DIR$/DiffieHellman/DiffieHellman.iml" />
+      <module fileurl="file://$PROJECT_DIR$/Elliptic/Elliptic.iml" filepath="$PROJECT_DIR$/Elliptic/Elliptic.iml" />
+      <module fileurl="file://$PROJECT_DIR$/FF2/FF2.iml" filepath="$PROJECT_DIR$/FF2/FF2.iml" />
       <module fileurl="file://$PROJECT_DIR$/MultipleAES/MultipleAES.iml" filepath="$PROJECT_DIR$/MultipleAES/MultipleAES.iml" />
       <module fileurl="file://$PROJECT_DIR$/encoding-solutions.iml" filepath="$PROJECT_DIR$/encoding-solutions.iml" />
       <module fileurl="file://$PROJECT_DIR$/numbers/numbers.iml" filepath="$PROJECT_DIR$/numbers/numbers.iml" />

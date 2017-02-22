@@ -1,8 +1,10 @@
 // DE9eCTR.java CS6025 Cheng 2016
 // Implementing AES encryption with CTR mode
 // Usage: java DE9eCTR key nonce < original > DE9testCTR.de9
+// Completed by Kristian Snyder
 
 import java.io.*;
+import java.nio.file.FileSystems;
 import java.util.*;
 
 public class DE9eCTR{
@@ -38,6 +40,9 @@ public class DE9eCTR{
     int[] inBlock = new int[blockSize];
     int[][] roundKey = new int[numberOfRounds][blockSize];
     String hexkey = null;
+    FileOutputStream stream = null;
+    int currBytes = 0;
+    byte[] file = null;
 
     int modMultiply(int a, int b, int m){
         int product = 0;
@@ -81,15 +86,29 @@ public class DE9eCTR{
     }
 
     int readBlock(){
-        byte[] data = new byte[blockSize];
         int len = 0;
-        try {
-            len = System.in.read(data);
-        } catch (IOException e){
-            System.err.println(e.getMessage());
-            System.exit(1);
+        byte[] data = null;
+        if (stream == null) {
+            data = new byte[blockSize];
+            try {
+                len = System.in.read(data);
+            } catch (IOException e){
+                System.err.println(e.getMessage());
+                System.exit(1);
+            }
+            if (len <= 0) return len;
+        } else {
+            if (currBytes > file.length) {
+                return 0;
+            }
+            int end = currBytes + blockSize;
+            if (end > file.length) {
+                end = file.length;
+            }
+            data = Arrays.copyOfRange(file, currBytes, end);
+            currBytes += blockSize;
+            len = data.length;
         }
-        if (len <= 0) return len;
         for (int i = 0; i < len; i++){
             if (data[i] < 0) inBlock[i] = data[i] + fieldSize;
             else inBlock[i] = data[i];
@@ -171,6 +190,11 @@ public class DE9eCTR{
         byte[] data = new byte[blockSize];
         for (int i = 0; i < len; i++)
             data[i] = (byte)(state[i]);
+        try {
+            stream.write(data);
+        } catch (IOException ex) {
+            System.err.println("Failed to write to file.");
+        }
         System.out.write(data, 0, len);
     }
 
@@ -210,14 +234,28 @@ public class DE9eCTR{
             destination[k] = source[k];
     }
 
-    void encrypt(){
+    void encrypt(String[] args){
+        if (args.length > 2) {
+            try {
+                file = java.nio.file.Files.readAllBytes(FileSystems.getDefault().getPath(args[2]));
+                // file output
+                stream = new FileOutputStream("decryptedCTR.de9", false);
+            } catch (IOException ioErr) {
+                System.err.println(ioErr.getMessage());
+            }
+        }
         int len = 0;
-        while ((len = readBlock()) >= 0){
+        while ((len = readBlock()) > 0){
             copyBlock(state, counter);
             blockCipher();
             addBlock(state, inBlock);
             writeBlock(len);
             incrementCounter();
+        }
+        try {
+            stream.close();
+        } catch (IOException ex) {
+            System.err.println("Could not close file.");
         }
     }
 
@@ -232,6 +270,6 @@ public class DE9eCTR{
         de9.readKey(args[0]);
         de9.expandKey();
         de9.readNonce(args[1]);
-        de9.encrypt();
+        de9.encrypt(args);
     }
 }

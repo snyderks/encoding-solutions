@@ -1,8 +1,10 @@
 // DE9dXTS.java CS6025 Cheng 2016
 // Implementing XTS-AES decryption
 // Usage: java DE9dXTS doublekey tweak < DE9testXTS.de9 > original.txt
+// Completed by Kristian Snyder
 
 import java.io.*;
+import java.nio.file.FileSystems;
 import java.util.*;
 
 public class DE9dXTS{
@@ -47,6 +49,10 @@ public class DE9dXTS{
     int[][] roundKey2 = new int[numberOfRounds][blockSize];
     String hexkey = null;
     int[] T = new int[blockSize];
+    FileOutputStream stream = null;
+    int currBytes = 0;
+    byte[] file = null;
+
 
     int modMultiply(int a, int b, int m){
         int product = 0;
@@ -91,19 +97,35 @@ public class DE9dXTS{
     }
 
     int readBlock(){
-        byte[] data = new byte[blockSize];
         int len = 0;
-        try {
-            len = System.in.read(data);
-        } catch (IOException e){
-            System.err.println(e.getMessage());
-            System.exit(1);
+        byte[] data = null;
+        if (stream == null) {
+            data = new byte[blockSize];
+            try {
+                len = System.in.read(data);
+                //System.out.println(len + " bytes entered");
+            } catch (IOException e) {
+                System.err.println(e.getMessage());
+                System.exit(1);
+            }
+            if (len <= 0) return len;
+        } else {
+            if (currBytes > file.length) {
+                return 0;
+            }
+            int end = currBytes + blockSize;
+            if (end > file.length) {
+                end = file.length;
+            }
+            data = Arrays.copyOfRange(file, currBytes, end);
+            currBytes += blockSize;
+            len = data.length;
         }
-        if (len <= 0) return len;
         for (int i = 0; i < len; i++){
             if (data[i] < 0) state[i] = data[i] + fieldSize;
             else state[i] = data[i];
         }
+        for (int i = len; i < blockSize; i++) { state[i] = 0; }
         return len;
     }
 
@@ -140,7 +162,15 @@ public class DE9dXTS{
     }
 
     void inverseShiftRows(){
-        // Your code from DE8
+        // Rotate second row right
+        int temp = state[13]; state[13] = state[9];
+        state[9] = state[5]; state[5] = state[1]; state[1] = temp;
+        // Exchanges on third row (2 & 10, 6 & 14)
+        temp = state[2]; state[2] = state[10]; state[10] = temp;
+        temp = state[6]; state[6] = state[14]; state[14] = temp;
+        // Rotate fourth row left
+        temp = state[3]; state[3] = state[7]; state[7] = state[11];
+        state[11] = state[15]; state[15] = temp;
     }
 
     void inverseMixColumns(){
@@ -205,15 +235,16 @@ public class DE9dXTS{
     }
 
     void inverseAddRoundKey1(int round){ // Your code from DE8
-        for (int k = 0; k < blockSize; k++)
-            state[k] ^= roundKey1[?][k];
+        for (int k = 0; k < blockSize; k++) {
+            state[k] ^= roundKey1[numberOfRounds - round - 1][k];
+        }
     }
 
     void blockDecipher1(){
         inverseAddRoundKey1(0);
         for (int i = 1; i < numberOfRounds; i++){
-            inverseSubBytes();
             inverseShiftRows();
+            inverseSubBytes();
             inverseAddRoundKey1(i);
             if (i < numberOfRounds - 1) inverseMixColumns();
         }
@@ -275,6 +306,11 @@ public class DE9dXTS{
         byte[] data = new byte[blockSize];
         for (int i = 0; i < len; i++)
             data[i] = (byte)(block[i]);
+        try {
+            stream.write(data);
+        } catch (IOException ex) {
+            System.err.println("Failed to write to file.");
+        }
         System.out.write(data, 0, len);
     }
 
@@ -284,17 +320,30 @@ public class DE9dXTS{
     }
 
     void copyBlock(int[] destination, int[] source){
-        for (int k = 0; k < blockSize; k++)
+        for (int k = 0; k < blockSize; k++) {
+            if (k == source.length) {
+                break;
+            }
             destination[k] = source[k];
+        }
     }
 
-    void decrypt(){
+    void decrypt(String[] args){
+        if (args.length > 2) {
+            try {
+                file = java.nio.file.Files.readAllBytes(FileSystems.getDefault().getPath(args[2]));
+                // file output
+                stream = new FileOutputStream("decryptedXTS.de9", false);
+            } catch (IOException ioErr) {
+                System.err.println(ioErr.getMessage());
+            }
+        }
         int[] lastBlock = new int[blockSize];
         int[] currentBlock = new int[blockSize];
         int[] lastT = new int[blockSize];
         int len = readBlock();
         copyBlock(lastBlock, state);
-        while ((len = readBlock()) >= 0){
+        while ((len = readBlock()) > 0){
             if (len == blockSize){
                 copyBlock(currentBlock, state);
                 copyBlock(state, lastBlock);
@@ -303,6 +352,17 @@ public class DE9dXTS{
                 copyBlock(lastBlock, currentBlock);
                 Tx2();
             }else{
+                copyBlock(lastT, T);
+                Tx2();
+                copyBlock(currentBlock, state);
+                copyBlock(state, lastBlock);
+                xdx();
+                copyBlock(lastBlock, state);
+                copyBlock(state, Arrays.copyOfRange(currentBlock, 0, len));
+                copyBlock(T, lastT);
+                xdx();
+                writeBlock(state, blockSize);
+                writeBlock(lastBlock, len);
                 // save T in lastT
                 // call Tx2() to get the final T (j = m in diagram)
                 // save state in currentBlock
@@ -315,6 +375,11 @@ public class DE9dXTS{
                 // write out state in full
                 // write out the first len bytes of lastBlock
             }
+        }
+        try {
+            stream.close();
+        } catch (IOException ex) {
+            System.err.println("Could not close file.");
         }
         System.out.flush();
     }
@@ -331,6 +396,6 @@ public class DE9dXTS{
         de9.readKey(args[0]);
         de9.expandKey();
         de9.readTweak(args[1]);
-        de9.decrypt();
+        de9.decrypt(args);
     }
 }

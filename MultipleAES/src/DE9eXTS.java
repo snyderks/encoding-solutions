@@ -1,6 +1,7 @@
 // DE9eXTS.java CS6025 Cheng 2016
 // Implementing XTS-AES encryption
 // Usage: java DE9eXTS doublekey tweak < original > DE9testXTS.de9
+// Completed by Kristian Snyder
 
 import java.io.*;
 import java.util.*;

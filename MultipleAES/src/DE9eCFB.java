@@ -1,6 +1,7 @@
 // DE9eCFB.java CS6025 Cheng 2016
 // Implementing AES encryption with CFB mode, IV = 0, s = 8
 // Usage: java DE9eCFBA key < original > DE9testCFB.de9
+// Completed by Kristian Snyder
 
 import java.io.*;
 import java.util.*;

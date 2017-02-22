@@ -3,6 +3,8 @@
 // Usage: java DE9dCBCB key < DE9testCBC.de9 > originalCBC.txt
 
 import java.io.*;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.util.*;
 
 public class DE9dCBC{
@@ -37,6 +39,8 @@ public class DE9dCBC{
     int[] state = new int[blockSize];
     int[][] roundKey = new int[numberOfRounds][blockSize];
     String hexkey = null;
+    byte[] file = null; // for optionally reading a file
+    FileOutputStream stream = null;
 
     int modMultiply(int a, int b, int m){
         int product = 0;
@@ -79,17 +83,25 @@ public class DE9dCBC{
             Si[S[i]] = i;
         }
     }
-
-    int readBlock(){
-        byte[] data = new byte[blockSize];
+    int readBlock() {
+        return readBlock(null);
+    }
+    int readBlock(byte[] data){
         int len = 0;
-        try {
-            len = System.in.read(data);
-        } catch (IOException e){
-            System.err.println(e.getMessage());
-            System.exit(1);
+        if (data == null) {
+            data = new byte[blockSize];
+
+            try {
+                len = System.in.read(data);
+                //System.out.println(len + " bytes entered");
+            } catch (IOException e) {
+                System.err.println(e.getMessage());
+                System.exit(1);
+            }
+            if (len <= 0) return len;
+        } else {
+            len = data.length;
         }
-        if (len <= 0) return len;
         for (int i = 0; i < len; i++){
             if (data[i] < 0) state[i] = data[i] + fieldSize;
             else state[i] = data[i];
@@ -104,7 +116,15 @@ public class DE9dCBC{
     }
 
     void inverseShiftRows(){
-        // Your code from DE8
+        // Rotate second row right
+        int temp = state[13]; state[13] = state[9];
+        state[9] = state[5]; state[5] = state[1]; state[1] = temp;
+        // Exchanges on third row (2 & 10, 6 & 14)
+        temp = state[2]; state[2] = state[10]; state[10] = temp;
+        temp = state[6]; state[6] = state[14]; state[14] = temp;
+        // Rotate fourth row left
+        temp = state[3]; state[3] = state[7]; state[7] = state[11];
+        state[11] = state[15]; state[15] = temp;
     }
 
     void inverseMixColumns(){
@@ -149,17 +169,31 @@ public class DE9dCBC{
     }
 
     void inverseAddRoundKey(int round){  // Your code from DE8
-        for (int k = 0; k < blockSize; k++)
-            state[k] ^= roundKey[?][k];
+        for (int k = 0; k < blockSize; k++) {
+            state[k] ^= roundKey[numberOfRounds - round - 1][k];
+        }
     }
 
-    void blockDecipher(){  inverse of DE9eCBC.blockCipher()
+    void blockDecipher(){  // inverse of DE9eCBC.blockCipher()
         inverseAddRoundKey(0);
         for (int i = 1; i < numberOfRounds; i++){
-            inverseSubBytes();
             inverseShiftRows();
+            inverseSubBytes();
             inverseAddRoundKey(i);
             if (i < numberOfRounds - 1) inverseMixColumns();
+        }
+    }
+
+    void writeBlockToFile() {
+        byte[] data = new byte[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            data[i] = (byte) (state[i]);
+        }
+        try {
+            stream.write(data);
+        } catch (IOException ex) {
+            System.err.println("Failed to write encrypted block.");
+            System.exit(1);
         }
     }
 
@@ -185,17 +219,50 @@ public class DE9dCBC{
             destination[k] = source[k];
     }
 
-    void decrypt(){  // inverse of DE9
+    void decrypt(String[] args){  // inverse of DE9
+        int currBytes = 0;
+        if (args.length > 1) {
+            try {
+                file = java.nio.file.Files.readAllBytes(FileSystems.getDefault().getPath(args[1]));
+                // file output
+                stream = new FileOutputStream("decryptedCBC.de9", false);
+            } catch (IOException ioErr) {
+                System.err.println(ioErr.getMessage());
+            }
+        }
         int[] lastBlock = new int[blockSize];
         for (int k = 0; k < blockSize; k++) lastBlock[k] = 0;
         int[] currentBlock = new int[blockSize];
-        while (readBlock() > 0){
-            // Your code should be an arrangement of the following five function calls:
-            //  addBlock(state, lastBlock);
-            //  blockDecipher();
-            //  copyBlock(currentBlock, state);
-            //  copyBlock(lastBlock, currentBlock);
-            //  writeBlock();
+        if (file.length >= blockSize) {
+            while (currBytes < file.length) {
+                readBlock(Arrays.copyOfRange(file, currBytes, currBytes + blockSize));
+                currBytes += blockSize;
+                // Your code should be an arrangement of the following five function calls:
+                //  addBlock(state, lastBlock);
+                //  blockDecipher();
+                //  copyBlock(currentBlock, state);
+                //  copyBlock(lastBlock, currentBlock);
+                //  writeBlock();
+                copyBlock(currentBlock, state);
+                blockDecipher();
+                addBlock(state, lastBlock);
+                writeBlockToFile();
+                writeBlock();
+                copyBlock(lastBlock, currentBlock);
+            }
+        } else {
+            while (readBlock() > 0) {
+                copyBlock(currentBlock, state);
+                blockDecipher();
+                addBlock(state, lastBlock);
+                writeBlock();
+                copyBlock(lastBlock, currentBlock);
+            }
+        }
+        try {
+            stream.close();
+        } catch (IOException ex) {
+            System.err.println("Could not close output file.");
         }
         System.out.flush();
     }
@@ -203,7 +270,7 @@ public class DE9dCBC{
 
     public static void main(String[] args){
         if (args.length < 1){
-            System.err.println("Usage: java DE9dCBC key < DE9testCBC.de9 > originalCBC.txt");
+            System.err.println("Usage: java DE9dCBC key < DE9testCBC.de9 > originalCBC.txt < fileInput > ");
             return;
         }
         DE9dCBC de9 = new DE9dCBC();
@@ -211,6 +278,6 @@ public class DE9dCBC{
         de9.buildS();
         de9.readKey(args[0]);
         de9.expandKey();
-        de9.decrypt();
+        de9.decrypt(args);
     }
 }
