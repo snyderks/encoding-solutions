@@ -1,0 +1,5 @@
+The entropy of the file is approximately 4.3775, with the average path length
+taken on decompression being approximately 4.4185 bits per character. While
+this is not a perfect compression as it does not equal entropy, it is very
+close to entropy and supports the theorem that the average path length is
+greater than or equal to the entropy of the data.
